@@ -1,0 +1,90 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class Kasbon extends Model
+{
+    use HasFactory;
+
+    use HasFactory;
+    protected $table = 'keuangan_kasbon';
+    protected $primaryKey = "no_kasbon";
+    protected $guarded = [];
+    public $incrementing = false;
+
+    function getKasbon($no_kasbon = "", Request $request = null)
+    {
+
+        $user = User::findorfail(auth()->user()->id);
+
+        // dd($dept_access);
+        $query = Kasbon::query();
+        $query->select(
+            'keuangan_kasbon.*',
+            'nama_karyawan',
+            'nama_jabatan',
+            'hrd_karyawan.kode_dept',
+            'hrd_karyawan.kode_cabang',
+            'nama_dept',
+            'nama_cabang',
+            'tanggal_bayar',
+            'totalpembayaran',
+            'tanggal_masuk',
+            'keuangan_ledger.tanggal as tanggal_proses'
+        );
+        $query->join('hrd_karyawan', 'keuangan_kasbon.nik', '=', 'hrd_karyawan.nik');
+        $query->join('hrd_jabatan', 'hrd_karyawan.kode_jabatan', '=', 'hrd_jabatan.kode_jabatan');
+        $query->join('hrd_departemen', 'hrd_karyawan.kode_dept', '=', 'hrd_departemen.kode_dept');
+        $query->join('cabang', 'hrd_karyawan.kode_cabang', '=', 'cabang.kode_cabang');
+        $query->leftJoin('keuangan_ledger_kasbon', 'keuangan_kasbon.no_kasbon', '=', 'keuangan_ledger_kasbon.no_kasbon');
+        $query->leftJoin('keuangan_ledger', 'keuangan_ledger_kasbon.no_bukti', '=', 'keuangan_ledger.no_bukti');
+        $query->leftJoin(
+            DB::raw("(
+            SELECT no_kasbon,tanggal as tanggal_bayar,jumlah as totalpembayaran FROM keuangan_kasbon_historibayar
+        ) historibayar"),
+            function ($join) {
+                $join->on('keuangan_kasbon.no_kasbon', '=', 'historibayar.no_kasbon');
+            }
+        );
+
+        if (!empty($request->dari) && !empty($request->sampai)) {
+            $query->whereBetween('keuangan_kasbon.tanggal', [$request->dari, $request->sampai]);
+        }
+
+        if (!empty($request->kode_cabang_search)) {
+            $query->where('hrd_karyawan.kode_cabang', $request->kode_cabang_search);
+        }
+
+        //Report Kasbon
+        if (!empty($request->kode_cabang_kasbon)) {
+            $query->where('hrd_karyawan.kode_cabang', $request->kode_cabang_kasbon);
+        }
+
+        if (!empty($request->kode_dept_kasbon)) {
+            $query->where('hrd_karyawan.kode_dept', $request->kode_dept_kasbon);
+        }
+
+        if (!empty($request->nama_karyawan_search)) {
+            $query->where('nama_karyawan', 'like', '%' . $request->nama_karyawan_search . '%');
+        }
+
+        // if ($request->status === "1" || $request->status === 0) {
+        //     $query->where('pjp.status', $request->status);
+        // }
+
+        $query = Pjp::applyPjpAccess($query, $user);
+
+        if (!empty($no_kasbon)) {
+            $query->where('keuangan_kasbon.no_kasbon', $no_kasbon);
+        }
+
+        $query->orderBy('keuangan_kasbon.tanggal', 'desc');
+        $query->orderBy('keuangan_kasbon.no_kasbon', 'desc');
+        return $query;
+    }
+}

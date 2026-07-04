@@ -1,0 +1,201 @@
+@php
+    $laporanpermissions = [
+        'mkt.penjualan',
+        'mkt.kasbesar',
+        'mkt.retur',
+        'mkt.kartupiutang',
+        'mkt.aup',
+        'mkt.lebihsatufaktur',
+        'mkt.dppp',
+        'mkt.dpp',
+        'mkt.omsetpelanggan',
+        'mkt.rekappelanggan',
+        'mkt.rekappenjualan',
+        'mkt.rekapkendaraan',
+        'mkt.harganet',
+        'mkt.tandaterimafaktur',
+        'mkt.rekapwilayah',
+        'mkt.effectivecall',
+        'mkt.analisatransaksi',
+        'mkt.tunaitransfer',
+        'mkt.lhp',
+        'mkt.routingsalesman',
+        'mkt.salesperfomance',
+        'mkt.persentasesfa',
+        'mkt.smmactivity',
+        'mkt.rsmactivity',
+        'mkt.komisisalesman',
+        'mkt.komisidriverhelper',
+    ];
+@endphp
+@if (auth()->user()->hasAnyPermission([
+            'omancabang.index',
+            'oman.index',
+            'permintaankiriman.index',
+            'targetkomisi.index',
+            'penjualan.index',
+            'retur.index',
+            'ajuanlimit.index',
+            'sapiutangsales.index',
+            'movefaktur.index',
+            'trackingtruck.index',
+            ...$laporanpermissions,
+        ]))
+    <li
+        class="menu-item {{ request()->is([
+            'omancabang',
+            'omancabang/*',
+            'oman',
+            'oman/*',
+            'permintaankiriman',
+            'permintaankiriman/*',
+            'targetkomisi',
+            'ratiodriverhelper',
+            'penjualan',
+            'penjualan/*',
+            'retur',
+            'retur/*',
+            'ajuanlimit',
+            'ajuanlimit/*',
+            'ajuanfaktur',
+            'laporanmarketing',
+            'sapiutangsales',
+            'sapiutangsales/*',
+            'movefaktur',
+            'movefaktur/*',
+            'trackingtruck',
+            'trackingtruck/*',
+        ])
+            ? 'open'
+            : '' }}">
+
+        <a href="javascript:void(0);" class="menu-link menu-toggle">
+            <i class="menu-icon tf-icons ti ti-building-broadcast-tower"></i>
+            <div>Marketing</div>
+            @if (!empty($notifikasi_marketing))
+                <div class="badge bg-danger rounded-pill ms-auto">{{ $notifikasi_marketing }}</div>
+            @endif
+        </a>
+        <ul class="menu-sub">
+            @can('permintaankiriman.index')
+                <li class="menu-item {{ request()->is(['permintaankiriman', 'permintaankiriman/*']) ? 'active' : '' }}">
+                    <a href="{{ route('permintaankiriman.index') }}" class="menu-link">
+                        <div>Permintaan Kiriman</div>
+                    </a>
+                </li>
+            @endcan
+            @if (auth()->user()->hasAnyPermission(['omancabang.index', 'oman.index']))
+                @if (auth()->user()->hasAllPermissions(['omancabang.index', 'oman.index']))
+                    <li class="menu-item {{ request()->is(['omancabang', 'omancabang/*', 'oman', 'oman/*']) ? 'active' : '' }}">
+                        <a href="{{ route('omancabang.index') }}" class="menu-link">
+                            <div>Order Management</div>
+                        </a>
+                    </li>
+                @elseif(auth()->user()->hasAllPermissions(['omancabang.index']))
+                    <li class="menu-item {{ request()->is(['omancabang', 'omancabang/*', 'oman', 'oman/*']) ? 'active' : '' }}">
+                        <a href="{{ route('omancabang.index') }}" class="menu-link">
+                            <div>Order Management</div>
+                        </a>
+                    </li>
+                @elseif (auth()->user()->hasAllPermissions(['oman.index']))
+                    <li class="menu-item {{ request()->is(['omancabang', 'omancabang/*', 'oman', 'oman/*']) ? 'active' : '' }}">
+                        <a href="{{ route('oman.index') }}" class="menu-link">
+                            <div>Order Management</div>
+                        </a>
+                    </li>
+                @endif
+            @endif
+            @if (auth()->user()->hasAnyPermission(['targetkomisi.index', 'ratiodriverhelper.index']))
+                @if (auth()->user()->hasAllPermissions(['targetkomisi.index', 'ratiodriverhelper.index']))
+                    <li class="menu-item {{ request()->is(['targetkomisi', 'targetkomisi/*', 'ratiodriverhelper']) ? 'active' : '' }}">
+                        <a href="{{ route('targetkomisi.index') }}" class="menu-link">
+                            <div>Komisi</div>
+                            @if (!empty($notifikasi_komisi))
+                                <div class="badge bg-danger rounded-pill ms-auto">{{ $notifikasi_komisi }}</div>
+                            @endif
+                        </a>
+                    </li>
+                @elseif (auth()->user()->hasAllPermissions(['targetkomisi.index']))
+                    <li class="menu-item {{ request()->is(['targetkomisi', 'targetkomisi/*', 'ratiodriverhelper']) ? 'active' : '' }}">
+                        <a href="{{ route('targetkomisi.index') }}" class="menu-link">
+                            <div>Komisi</div>
+                            @if (!empty($notifikasi_komisi))
+                                <div class="badge bg-danger rounded-pill ms-auto">{{ $notifikasi_komisi }}</div>
+                            @endif
+                        </a>
+                    </li>
+                @elseif (auth()->user()->hasAllPermissions(['ratiodriverhelper.index']))
+                    <li class="menu-item {{ request()->is(['ratiodriverhelper', 'ratiodriverhelper/*', 'ratiodriverhelper']) ? 'active' : '' }}">
+                        <a href="{{ route('ratiodriverhelper.index') }}" class="menu-link">
+                            <div>Komisi</div>
+                            @if (!empty($notifikasi_komisi))
+                                <div class="badge bg-danger rounded-pill ms-auto">{{ $notifikasi_komisi }}</div>
+                            @endif
+                        </a>
+                    </li>
+                @endif
+            @endif
+            @can('penjualan.index')
+                <li class="menu-item {{ request()->is(['penjualan', 'penjualan/*']) ? 'active' : '' }}">
+                    <a href="{{ route('penjualan.index') }}" class="menu-link">
+                        <div>Penjualan</div>
+                    </a>
+                </li>
+            @endcan
+            @can('retur.index')
+                <li class="menu-item {{ request()->is(['retur', 'retur/*']) ? 'active' : '' }}">
+                    <a href="{{ route('retur.index') }}" class="menu-link">
+                        <div>Retur</div>
+                    </a>
+                </li>
+            @endcan
+            @can('sapiutang.index')
+                <li class="menu-item {{ request()->is(['sapiutang', 'sapiutang/*']) ? 'active' : '' }}">
+                    <a href="{{ route('sapiutang.index') }}" class="menu-link">
+                        <div>Saldo Awal Piutang</div>
+                    </a>
+                </li>
+            @endcan
+            @can('sapiutangsales.index')
+                <li class="menu-item {{ request()->is(['sapiutangsales', 'sapiutangsales/*']) ? 'active' : '' }}">
+                    <a href="{{ route('sapiutangsales.index') }}" class="menu-link">
+                        <div>S.A Piutang Sales</div>
+                    </a>
+                </li>
+            @endcan
+            @can('movefaktur.index')
+                <li class="menu-item {{ request()->is(['movefaktur', 'movefaktur/*']) ? 'active' : '' }}">
+                    <a href="{{ route('movefaktur.index') }}" class="menu-link">
+                        <div>Move Faktur</div>
+                    </a>
+                </li>
+            @endcan
+            @if (auth()->user()->hasAnyPermission(['ajuanlimit.index', 'ajuanfaktur.index', 'ajuanrouting.index']))
+                <li class="menu-item {{ request()->is(['ajuanlimit', 'ajuanlimit/*', 'ajuanfaktur']) ? 'active' : '' }}">
+                    <a href="{{ route('ajuanlimit.index', ['status' => '0', 'posisi_ajuan' => auth()->user()->hasRole('super admin') ? '' : auth()->user()->getRoleNames()->first()]) }}"
+                        class="menu-link">
+                        <div>Pengajuan</div>
+                        @if (!empty($notifikasi_pengajuan_marketing))
+                            <div class="badge bg-danger rounded-pill ms-auto">{{ $notifikasi_pengajuan_marketing }}</div>
+                        @endif
+
+                    </a>
+                </li>
+            @endif
+            @can('trackingtruck.index')
+                <li class="menu-item {{ request()->is(['trackingtruck', 'trackingtruck/*']) ? 'active' : '' }}">
+                    <a href="{{ route('trackingtruck.index') }}" class="menu-link">
+                        <div>Tracking Truck</div>
+                    </a>
+                </li>
+            @endcan
+            @if (auth()->user()->hasAnyPermission($laporanpermissions))
+                <li class="menu-item {{ request()->is(['laporanmarketing']) ? 'active' : '' }}">
+                    <a href="{{ route('laporanmarketing.index') }}" class="menu-link">
+                        <div>Laporan</div>
+                    </a>
+                </li>
+            @endif
+        </ul>
+    </li>
+@endif

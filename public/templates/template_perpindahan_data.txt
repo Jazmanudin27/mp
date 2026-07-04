@@ -1,0 +1,19 @@
+FORMAT PENGAJUAN PERPINDAHAN DATA
+====================================
+
+1. DATA PEMBUAT TIKET:
+   - Nama Pembuat : [Isi Nama]
+   - Cabang Asal  : [Isi Cabang Asal]
+   - Cabang Tujuan: [Isi Cabang Tujuan]
+
+2. RINCIAN DATA YANG INGIN DIPINDAHKAN:
+   +----+--------------------+-------------------+-----------------------+---------------------+
+   | No | Jenis Data         | Kode/No Bukti     | Nama Subjek/Pelanggan | Alasan Perpindahan  |
+   +----+--------------------+-------------------+-----------------------+---------------------+
+   | 1  | Pelanggan / Sales  | Contoh: PLG-00123 | Toko Maju Jaya        | Mutasi Area Sales   |
+   | 2  | Faktur / Transaksi | Contoh: FKT-99123 | Salesman Budi         | Salah Input Cabang  |
+   +----+--------------------+-------------------+-----------------------+---------------------+
+
+3. PERSETUJUAN LOKAL:
+   - Disetujui SMM : [ ] Ya / [ ] Tidak
+   - Disetujui RSM : [ ] Ya / [ ] Tidak

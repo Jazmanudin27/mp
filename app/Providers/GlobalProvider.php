@@ -1,0 +1,881 @@
+<?php
+
+namespace App\Providers;
+
+use App\Models\Ajuanprogramikatan;
+use App\Models\Ajuanprogramikatanenambulan;
+use App\Models\Ajuanprogramkumulatif;
+use App\Models\Ajuantransferdana;
+use App\Models\Disposisiajuanfaktur;
+use App\Models\Disposisiajuanlimitkredit;
+use App\Models\Disposisiizinabsen;
+use App\Models\Disposisiizincuti;
+use App\Models\Disposisiizindinas;
+use App\Models\Disposisiizinkeluar;
+use App\Models\Disposisiizinkoreksi;
+use App\Models\Disposisiizinpulang;
+use App\Models\Disposisiizinsakit;
+use App\Models\Disposisiizinterlambat;
+use App\Models\Lembur;
+use App\Models\Disposisipenilaiankaryawan;
+use App\Models\Disposisitargetkomisi;
+use App\Models\Penilaiankaryawan;
+use App\Models\Izinabsen;
+use App\Models\Izincuti;
+use App\Models\Izindinas;
+use App\Models\Izinkeluar;
+use App\Models\Izinkoreksi;
+use App\Models\Izinpulang;
+use App\Models\Izinsakit;
+use App\Models\Izinterlambat;
+use App\Models\Pencairanprogram;
+use App\Models\Pencairanprogramenambulan;
+use App\Models\Pencairanprogramikatan;
+use App\Models\Ticket;
+use App\Models\Ticketupdatedata;
+use App\Models\User;
+use App\Models\MktIkatan2026;
+use App\Models\PencairanProgramIkatan2026;
+use Illuminate\Contracts\Auth\Guard;
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\ServiceProvider;
+use Spatie\Activitylog\Models\Activity;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+
+class GlobalProvider extends ServiceProvider
+{
+    /**
+     * Register services.
+     */
+    public function register(): void
+    {
+        //
+    }
+
+    /**
+     * Bootstrap services.
+     */
+    public function boot(Guard $auth): void
+    {
+        view()->composer('*', function ($view) use ($auth) {
+            // [OPTIMASI] Pastikan logic ini hanya berjalan 1x per request
+            static $composed = false;
+            if ($composed) return;
+            $composed = true;
+            $roles_show_cabang = [
+                'super admin',
+                'gm marketing',
+                'gm administrasi',
+                'manager keuangan',
+                'direktur',
+                'regional sales manager',
+                'asst. manager hrd',
+                'staff keuangan',
+                'admin pajak',
+                'manager audit',
+                'audit',
+                'regional operation manager',
+                'crm',
+                'spv accounting',
+                'manager general affair',
+                'general affair',
+                'spv presensi',
+                'manager gudang',
+                'spv gudang pusat',
+                'admin gudang pusat',
+                'gm operasional',
+                'admin pusat'
+            ];
+
+            $roles_show_cabang_pjp = [
+                'super admin',
+                'gm marketing',
+                'gm administrasi',
+                'manager keuangan',
+                'direktur',
+                'regional sales manager',
+                'asst. manager hrd',
+                'staff keuangan',
+                'regional operation manager',
+            ];
+            $start_periode = '2023-01-01';
+            $end_periode = date('Y') . '-12-31';
+            $namabulan = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+            if ($auth->check()) {
+                $level_user = auth()->user()->roles->pluck('name')[0];
+                $roles_can_approve_presensi = config('presensi.approval');
+                $level_hrd = config('presensi.approval.level_hrd');
+
+                $user_role_ids = auth()->user()->roles->pluck('id')->toArray();
+                $users_with_same_roles = function ($query) use ($user_role_ids) {
+                    $query->select('model_id')
+                        ->from('model_has_roles')
+                        ->whereIn('role_id', $user_role_ids);
+                };
+
+                $ajl = new \App\Models\Ajuanlimitkredit();
+                $posisi_ajuan = auth()->user()->hasRole('super admin') ? '' : ($level_user == 'operation manager' ? 'sales marketing manager' : $level_user);
+
+                // --- OPTIMASI CACHE MARKETING ---
+                // Mengambil versi cache terbaru untuk kategori marketing
+                $version_marketing = Cache::get('notif_marketing_version', 1);
+                $user_id = auth()->id();
+
+                // Cache untuk Notifikasi Limit Kredit
+                $cacheKeyLimit = "notif_limitkredit_{$user_id}_v{$version_marketing}";
+                if (Cache::has($cacheKeyLimit)) {
+                    //\Log::info("DEBUG: Notif Limit Kredit diambil dari [CACHE] - User ID: " . $user_id);
+                }
+                $notifikasi_limitkredit = Cache::remember($cacheKeyLimit, now()->addHours(24), function () use ($ajl, $posisi_ajuan) {
+                    //\Log::info("DEBUG: Notif Limit Kredit diambil dari [DATABASE] - User ID: " . auth()->id());
+                    return $ajl->getAjuanlimitkredit(request: new \Illuminate\Http\Request([
+                        'status' => '0',
+                        'posisi_ajuan' => $posisi_ajuan
+                    ]))->count();
+                });
+
+                $pf = new \App\Models\Pengajuanfaktur();
+                // Cache untuk Notifikasi Ajuan Faktur
+                $cacheKeyFaktur = "notif_ajuanfaktur_{$user_id}_v{$version_marketing}";
+                if (Cache::has($cacheKeyFaktur)) {
+                    //\Log::info("DEBUG: Notif Ajuan Faktur diambil dari [CACHE] - User ID: " . $user_id);
+                }
+                $notifikasi_ajuanfaktur = Cache::remember($cacheKeyFaktur, now()->addHours(24), function () use ($pf, $posisi_ajuan) {
+                    //\Log::info("DEBUG: Notif Ajuan Faktur diambil dari [DATABASE] - User ID: " . auth()->id());
+                    return $pf->getPengajuanfaktur(request: new \Illuminate\Http\Request([
+                        'status' => '0',
+                        'posisi_ajuan' => $posisi_ajuan
+                    ]))->count();
+                });
+
+                $notifikasi_target = Disposisitargetkomisi::whereIn('id_penerima', $users_with_same_roles)->where('status', 0)->count();
+                $notifikasi_pengajuan_marketing = $notifikasi_limitkredit + $notifikasi_ajuanfaktur;
+                $notifikasi_komisi = $notifikasi_target;
+                $notifikasi_marketing = $notifikasi_pengajuan_marketing + $notifikasi_komisi;
+                // --- END OPTIMASI CACHE MARKETING ---
+
+
+
+
+                $pk = new Penilaiankaryawan();
+                $notifikasi_penilaiankaryawan = auth()->user()->hasPermissionTo('penilaiankaryawan.approve')
+                    ? $pk->getPenilaiankaryawan(request: new \Illuminate\Http\Request(['status' => 'pending']))->count()
+                    : 0;
+
+                $cek_approval_presensi = $roles_can_approve_presensi[$level_user] ?? [];
+                //Jika Bukan Direktur
+                $izinabsen = new Izinabsen();
+                $izinkeluar = new Izinkeluar();
+                $izinpulang = new Izinpulang();
+                $izinterlambat = new Izinterlambat();
+                $izinsakit = new Izinsakit();
+                $izincuti = new Izincuti();
+                $izindinas = new Izindinas();
+                $izinkoreksi = new Izinkoreksi();
+
+                $notifikasi_izinabsen = auth()->user()->hasPermissionTo('izinabsen.approve') ? $izinabsen->getIzinabsen(cekPending: true)->count() : 0;
+                $notifikasi_izinkeluar = auth()->user()->hasPermissionTo('izinkeluar.approve') ? $izinkeluar->getIzinkeluar(cekPending: true)->count() : 0;
+                $notifikasi_izinpulang = auth()->user()->hasPermissionTo('izinpulang.approve') ? $izinpulang->getIzinpulang(cekPending: true)->count() : 0;
+                $notifikasi_izinterlambat = auth()->user()->hasPermissionTo('izinterlambat.approve') ? $izinterlambat->getIzinterlambat(cekPending: true)->count() : 0;
+                $notifikasi_izinsakit = auth()->user()->hasPermissionTo('izinsakit.approve') ? $izinsakit->getIzinsakit(cekPending: true)->count() : 0;
+                $notifikasi_izincuti = auth()->user()->hasPermissionTo('izincuti.approve') ? $izincuti->getIzincuti(cekPending: true)->count() : 0;
+                $notifikasi_izindinas = auth()->user()->hasPermissionTo('izindinas.approve') ? $izindinas->getIzindinas(cekPending: true)->count() : 0;
+                $notifikasi_izinkoreksi = auth()->user()->hasPermissionTo('izinkoreksi.approve') ? $izinkoreksi->getIzinkoreksi(cekPending: true)->count() : 0;
+
+                $notifikasi_pengajuan_izin = $notifikasi_izinabsen + $notifikasi_izincuti + $notifikasi_izinterlambat + $notifikasi_izinsakit + $notifikasi_izinpulang + $notifikasi_izindinas + $notifikasi_izinkoreksi + $notifikasi_izinkeluar;
+
+                $lembur = new Lembur();
+                $notifikasi_lembur = auth()->user()->hasPermissionTo('lembur.approve')
+                    ? $lembur->getLembur(request: new \Illuminate\Http\Request(['status' => 'pending']))->count()
+                    : 0;
+
+                // $notifikasi_log = Activity::where('status_log', 0)->whereIn('event', ['update', 'cancel', 'delete'])->count();
+                $notifikasi_update_data = Ticketupdatedata::where('status', 0)->count();
+                if ($level_user == "manager keuangan") {
+                    $qajuantransferdana = Ajuantransferdana::query();
+                    $qajuantransferdana->select(
+                        'keuangan_ajuantransferdana.*',
+                        'keuangan_setoranpusat_ajuantransfer.kode_setoran',
+                        'keuangan_setoranpusat.tanggal as tanggal_proses',
+                        'keuangan_setoranpusat.status as status_setoran',
+                        'nama_cabang'
+                    );
+                    $qajuantransferdana->join('cabang', 'keuangan_ajuantransferdana.kode_cabang', '=', 'cabang.kode_cabang');
+                    $qajuantransferdana->leftJoin('keuangan_setoranpusat_ajuantransfer', 'keuangan_ajuantransferdana.no_pengajuan', '=', 'keuangan_setoranpusat_ajuantransfer.no_pengajuan');
+                    $qajuantransferdana->leftJoin('keuangan_setoranpusat', 'keuangan_setoranpusat_ajuantransfer.kode_setoran', '=', 'keuangan_setoranpusat.kode_setoran');
+                    $qajuantransferdana->where('keuangan_ajuantransferdana.status', 0);
+                    $notifikasiajuantransferdana  = $qajuantransferdana->count();
+                } else if ($level_user == "operation manager") {
+
+                    $qajuantransferdana = Ajuantransferdana::query();
+                    $qajuantransferdana->select(
+                        'keuangan_ajuantransferdana.*',
+                        'keuangan_setoranpusat_ajuantransfer.kode_setoran',
+                        'keuangan_setoranpusat.tanggal as tanggal_proses',
+                        'keuangan_setoranpusat.status as status_setoran',
+                        'nama_cabang'
+                    );
+                    $qajuantransferdana->join('cabang', 'keuangan_ajuantransferdana.kode_cabang', '=', 'cabang.kode_cabang');
+                    $qajuantransferdana->leftJoin('keuangan_setoranpusat_ajuantransfer', 'keuangan_ajuantransferdana.no_pengajuan', '=', 'keuangan_setoranpusat_ajuantransfer.no_pengajuan');
+                    $qajuantransferdana->leftJoin('keuangan_setoranpusat', 'keuangan_setoranpusat_ajuantransfer.kode_setoran', '=', 'keuangan_setoranpusat.kode_setoran');
+                    $qajuantransferdana->whereNull('keuangan_setoranpusat_ajuantransfer.kode_setoran');
+                    $qajuantransferdana->where('keuangan_ajuantransferdana.kode_cabang', auth()->user()->kode_cabang);
+                    $notifikasiajuantransferdana  = $qajuantransferdana->count();
+                } else {
+                    $notifikasiajuantransferdana = 0;
+                }
+
+
+                //NOtifikasi Ajuan Program
+                if ($level_user == 'operation manager') {
+                    $notifikasi_ajuanprogramikatan = MktIkatan2026::whereNull('om')->where('kode_cabang', auth()->user()->kode_cabang)->count();
+                    $notifikasi_pencairanprogramikatan = PencairanProgramIkatan2026::whereNull('marketing_pencairan_ikatan_2026.om')
+                        ->where('marketing_pencairan_ikatan_2026.kode_cabang', auth()->user()->kode_cabang)
+                        ->count();
+
+                    $notifikasi_ajuanprogramkumulatif = Ajuanprogramkumulatif::whereNull('om')->where('kode_cabang', auth()->user()->kode_cabang)->count();
+                    $notifikasi_pencairanprogramkumulatif = Pencairanprogram::whereNull('om')
+                        ->where('kode_cabang', auth()->user()->kode_cabang)
+                        ->count();
+
+                    $notifikasi_ajuanprogramikatanenambulan = Ajuanprogramikatanenambulan::whereNull('om')->where('kode_cabang', auth()->user()->kode_cabang)->count();
+                    $notifikasi_pencairanprogramikatanenambulan = Pencairanprogramenambulan::whereNull('marketing_pencairan_ikatan_enambulan.om')
+                        ->where('marketing_pencairan_ikatan_enambulan.kode_cabang', auth()->user()->kode_cabang)
+                        ->count();
+
+                } else if ($level_user == 'regional sales manager') {
+                    $notifikasi_ajuanprogramikatan = MktIkatan2026::whereNull('rsm')
+                        ->join('cabang', 'mkt_ikatan_2026.kode_cabang', '=', 'cabang.kode_cabang')
+                        ->where('cabang.kode_regional', auth()->user()->kode_regional)
+                        ->whereNotNull('om')
+                        ->count();
+                    $notifikasi_pencairanprogramikatan = PencairanProgramIkatan2026::whereNull('marketing_pencairan_ikatan_2026.rsm')
+                        ->join('cabang', 'marketing_pencairan_ikatan_2026.kode_cabang', '=', 'cabang.kode_cabang')
+                        ->where('cabang.kode_regional', auth()->user()->kode_regional)
+                        ->whereNotNull('marketing_pencairan_ikatan_2026.om')
+                        ->count();
+
+                    $notifikasi_ajuanprogramkumulatif = Ajuanprogramkumulatif::whereNull('rsm')
+                        ->join('cabang', 'marketing_program_kumulatif.kode_cabang', '=', 'cabang.kode_cabang')
+                        ->where('cabang.kode_regional', auth()->user()->kode_regional)
+                        ->whereNotNull('om')
+
+                        ->count();
+                    $notifikasi_pencairanprogramkumulatif = Pencairanprogram::whereNull('rsm')
+                        ->join('cabang', 'marketing_program_pencairan.kode_cabang', '=', 'cabang.kode_cabang')
+                        ->where('kode_regional', auth()->user()->kode_regional)
+                        ->whereNotNull('om')
+                        ->count();
+
+
+                    $notifikasi_ajuanprogramikatanenambulan = Ajuanprogramikatanenambulan::whereNull('rsm')
+                        ->join('cabang', 'marketing_program_ikatan_enambulan.kode_cabang', '=', 'cabang.kode_cabang')
+                        ->where('cabang.kode_regional', auth()->user()->kode_regional)
+                        ->whereNotNull('om')
+                        ->count();
+                    $notifikasi_pencairanprogramikatanenambulan = Pencairanprogramenambulan::whereNull('marketing_pencairan_ikatan_enambulan.rsm')
+                        ->join('cabang', 'marketing_pencairan_ikatan_enambulan.kode_cabang', '=', 'cabang.kode_cabang')
+                        ->where('cabang.kode_regional', auth()->user()->kode_regional)
+                        ->whereNotNull('marketing_pencairan_ikatan_enambulan.om')
+                        ->count();
+
+
+                } else if ($level_user == 'gm marketing') {
+                    $notifikasi_ajuanprogramikatan = MktIkatan2026::whereNull('gm')
+                        ->whereNotNull('rsm')
+                        ->where('status', 0)
+                        ->count();
+
+                    $notifikasi_pencairanprogramikatan = PencairanProgramIkatan2026::whereNull('marketing_pencairan_ikatan_2026.gm')
+                        ->where('marketing_pencairan_ikatan_2026.status', 0)
+                        ->whereNotNull('marketing_pencairan_ikatan_2026.rsm')
+                        ->count();
+
+                    $notifikasi_ajuanprogramkumulatif = Ajuanprogramkumulatif::whereNull('gm')
+                        ->whereNotNull('rsm')
+                        ->where('status', 0)
+                        ->count();
+                    $notifikasi_pencairanprogramkumulatif = Pencairanprogram::whereNull('gm')
+
+                        ->whereNotNull('rsm')
+                        ->where('status', 0)
+                        ->count();
+
+                    $notifikasi_ajuanprogramikatanenambulan = Ajuanprogramikatanenambulan::whereNull('gm')
+                        ->whereNotNull('rsm')
+                        ->where('status', 0)
+                        ->count();
+
+                    $notifikasi_pencairanprogramikatanenambulan = Pencairanprogramenambulan::whereNull('marketing_pencairan_ikatan_enambulan.gm')
+                        ->where('marketing_pencairan_ikatan_enambulan.status', 0)
+                        ->whereNotNull('marketing_pencairan_ikatan_enambulan.rsm')
+                        ->count();
+
+                } else if ($level_user == 'direktur') {
+                    $notifikasi_ajuanprogramikatan = MktIkatan2026::whereNull('direktur')
+                        ->whereNotNull('gm')
+                        ->where('status', 0)
+                        ->count();
+                    $notifikasi_pencairanprogramikatan = PencairanProgramIkatan2026::whereNull('marketing_pencairan_ikatan_2026.direktur')
+                        ->where('marketing_pencairan_ikatan_2026.status', 0)
+                        ->whereNotNull('marketing_pencairan_ikatan_2026.gm')
+                        ->count();
+
+                    $notifikasi_ajuanprogramkumulatif = Ajuanprogramkumulatif::whereNull('direktur')
+                        ->whereNotNull('gm')
+                        ->where('status', 0)
+                        ->count();
+                    $notifikasi_pencairanprogramkumulatif = Pencairanprogram::whereNull('direktur')
+                        ->whereNotNull('gm')
+                        ->where('status', 0)
+                        ->count();
+
+                    $notifikasi_ajuanprogramikatanenambulan = Ajuanprogramikatanenambulan::whereNull('direktur')
+                        ->whereNotNull('gm')
+                        ->where('status', 0)
+                        ->count();
+
+                    $notifikasi_pencairanprogramikatanenambulan = Pencairanprogramenambulan::whereNull('direktur')
+                        ->whereNotNull('gm')
+                        ->where('status', 0)
+                        ->count();
+
+                } else {
+                    $notifikasi_ajuanprogramikatan = 0;
+                    $notifikasi_pencairanprogramikatan = 0;
+                    $notifikasi_ajuanprogramkumulatif = 0;
+                    $notifikasi_pencairanprogramkumulatif = 0;
+                    $notifikasi_ajuanprogramikatanenambulan = 0;
+                    $notifikasi_pencairanprogramikatanenambulan = 0;
+
+                }
+
+
+                $notifikasi_ajuan_program = $notifikasi_ajuanprogramikatan + $notifikasi_pencairanprogramikatan + $notifikasi_ajuanprogramkumulatif + $notifikasi_pencairanprogramkumulatif + $notifikasi_ajuanprogramikatanenambulan + $notifikasi_pencairanprogramikatanenambulan;
+                $notifikasi_hrd = $notifikasi_penilaiankaryawan + $notifikasi_pengajuan_izin + $notifikasi_lembur;
+                $total_notifikasi = $notifikasi_marketing + $notifikasi_hrd + $notifikasiajuantransferdana;
+
+
+                //Notifikasi Ticket
+                $userCurrent = auth()->user();
+                $notifikasi_ticket = Ticket::where('status', '0')
+                    ->where(function ($q) use ($userCurrent) {
+                        $q->where(function ($sq) use ($userCurrent) {
+                            $sq->where('posisi_approval', 'MANAGER_DEPT')->where('id_manager_dept', $userCurrent->id);
+                        })->orWhere(function ($sq) use ($userCurrent) {
+                            $sq->where('posisi_approval', 'SMM')->where('id_smm', $userCurrent->id);
+                        })->orWhere(function ($sq) use ($userCurrent) {
+                            $sq->where('posisi_approval', 'RSM')->where('id_rsm', $userCurrent->id);
+                        })->orWhere(function ($sq) use ($userCurrent) {
+                            $sq->where('posisi_approval', 'GM')->where('id_gm', $userCurrent->id);
+                        })->orWhere(function ($sq) use ($userCurrent) {
+                            if ($userCurrent->hasRole(['super admin', 'admin maintenance'])) {
+                                $sq->where('posisi_approval', 'ADMIN');
+                            } else {
+                                $sq->whereRaw('1 = 0');
+                            }
+                        });
+                    })->count();
+
+
+                // $notifIM = DB::table('internal_memo')
+                //     ->where('internal_memo.status', 1)
+                //     ->whereDate('internal_memo.berlaku_dari', '<=', now())
+                //     ->whereNotExists(function ($q) {
+                //         $q->select(DB::raw(1))
+                //             ->from('internal_memo_log_baca')
+                //             ->whereColumn('internal_memo_log_baca.internal_memo_id', 'internal_memo.id')
+                //             ->where('internal_memo_log_baca.user_id', auth()->id());
+                //     })
+                //     ->count();
+                $notifIM = 0;
+            } else {
+                $level_user = '';
+                $notifikasiajuantransferdana = 0;
+                $notifikasi_limitkredit = 0;
+                $notifikasi_ajuanfaktur = 0;
+                $notifikasi_pengajuan_marketing = 0;
+                $notifikasi_target = 0;
+                $notifikasi_komisi = 0;
+                $notifikasi_marketing = 0;
+                $notifikasi_penilaiankaryawan = 0;
+                $notifikasi_izinabsen = 0;
+                $notifikasi_izincuti = 0;
+                $notifikasi_izinterlambat = 0;
+                $notifikasi_izinsakit = 0;
+                $notifikasi_izinpulang = 0;
+                $notifikasi_izindinas = 0;
+                $notifikasi_izinkoreksi = 0;
+                $notifikasi_izinkeluar = 0;
+                $notifikasi_pengajuan_izin = 0;
+                $notifikasi_lembur = 0;
+
+                $notifikasi_hrd = 0;
+                $total_notifikasi = 0;
+
+                $notifikasi_ajuanprogramikatan = 0;
+                $notifikasi_pencairanprogramikatan = 0;
+                $notifikasi_ajuanprogramkumulatif = 0;
+                $notifikasi_pencairanprogramkumulatif = 0;
+                $notifikasi_ajuanprogramikatanenambulan = 0;
+                $notifikasi_pencairanprogramikatanenambulan = 0;
+
+                $notifikasi_ajuan_program = 0;
+
+                $notifikasi_izinabsen_presensi = 0;
+                $notifikasi_izincuti_presensi = 0;
+                $notifikasi_izinterlambat_presensi = 0;
+                $notifikasi_izinsakit_presensi = 0;
+                $notifikasi_izinpulang_presensi = 0;
+                $notifikasi_izindinas_presensi = 0;
+                $notifikasi_izinkoreksi_presensi = 0;
+                $notifikasi_izinkeluar_presensi = 0;
+                $total_notifikasi_izin_spvpresensi = 0;
+
+                $notifikasi_ticket = 0;
+                //$notifikasi_log = 0;
+                $notifikasi_update_data = 0;
+
+                $notifIM = 0;
+            }
+
+            if ($level_user == "gm administrasi") {
+                $start_periode = '2023-01-01';
+                $end_periode = date('Y') . '-12-31';
+            }
+
+            $datamaster_request = [
+                'regional',
+                'regional/*',
+                'cabang',
+                'cabang/*',
+                'salesman',
+                'salesman/*',
+                'kategoriproduk',
+                'kategoriproduk/*',
+                'jenisproduk',
+                'jenisproduk/*',
+                'produk',
+                'produk/*',
+                'harga',
+                'harga/*',
+                'pelanggan',
+                'pelanggan/*',
+                'wilayah',
+                'wilayah/*',
+                'kendaraan',
+                'kendaraan/*',
+                'supplier',
+                'supplier/*',
+                'karyawan',
+                'karyawan/*',
+                'rekening',
+                'rekening/*',
+                'gaji',
+                'gaji/*',
+                'insentif',
+                'insentif/*',
+                'bpjskesehatan',
+                'bpjskesehatan/*',
+                'bpjstenagakerja',
+                'bpjstenagakerja/*',
+                'bufferstok',
+                'bufferstok/*',
+                'barangproduksi',
+                'barangproduksi/*',
+                'tujuanangkutan',
+                'tujuanangkutan/*',
+                'angkutan',
+                'angkutan/*',
+                'barangpembelian',
+                'driverhelper',
+                'alasankoreksi',
+                'alasankoreksi/*'
+            ];
+
+
+            $datamaster_permission = [
+                'regional.index',
+                'cabang.index',
+                'salesman.index',
+                'kategoriproduk.index',
+                'jenisproduk.index',
+                'produk.index',
+                'hraga.index',
+                'pelanggan.index',
+                'wilayah.index',
+                'kendaraan.index',
+                'supplier.index',
+                'karyawan.index',
+                'rekening.index',
+                'gaji.index',
+                'insentif.index',
+                'bpjskesehatan.index',
+                'bpjstenagakerja.index',
+                'barangproduksi.index',
+                'bufferstok.index',
+                'driverhelper.index',
+                'angkutan.index',
+                'tujuanangkutan.index',
+                'barangpembelian.index',
+                'alasankoreksi.index'
+            ];
+
+            //Produksi
+            $produksi_request = [
+                'bpbj',
+                'bpbj/*',
+                'fsthp',
+                'fsthp/*',
+                'samutasiproduksi',
+                'samutasiproduksi/*',
+                'barangmasukproduksi',
+                'barangmasukproduksi/*',
+                'barangkeluarproduksi',
+                'barangkeluarproduksi/*',
+                'sabarangproduksi',
+                'sabarangproduksi/*',
+                'permintaanproduksi',
+                'permintaanproduksi/*',
+                'laporanproduksi',
+                'laporanproduksi/*',
+            ];
+
+
+            $produksi_permission = [
+                'bpbj.index',
+                'fsthp.index',
+                'samutasiproduksi.index',
+                'barangmasukproduksi.index',
+                'barangkeluarproduksi.index',
+                'sabarangproduksi.index',
+                'permintaanproduksi.index',
+                'prd.mutasiproduksi',
+                'prd.rekapmutasi',
+                'prd.pemasukan',
+                'prd.pengeluaran',
+                'prd.rekappersediaan'
+            ];
+
+            $produksi_mutasi_produk_request = ['samutasiproduksi', 'samutasiproduksi/*', 'bpbj', 'bpbj/*', 'fsthp', 'fsthp/*'];
+            $produksi_mutasi_produk_permission = ['bpbj.index', 'fsthp.index', 'samutasiproduksi.index'];
+            $produksi_mutasi_barang_request = [
+                'sabarangproduksi',
+                'sabarangproduksi/*',
+                'barangmasukproduksi',
+                'barangmasukproduksi/*',
+                'barangkeluarproduksi',
+                'barangkeluarproduksi/*'
+            ];
+            $produksi_mutasi_barang_permission = ['barangmasukproduksi.index', 'barangkeluarproduksi.index', 'sabarangproduksi.index'];
+            $produksi_laporan_permission = ['prd.mutasiproduksi', 'prd.rekapmutasi', 'prd.pemasukan', 'prd.pengeluaran', 'prd.rekappersediaan'];
+
+            $gudang_jadi_request = [
+                'sagudangjadi',
+                'sagudangjadi/*',
+                'suratjalan',
+                'suratjalan/*',
+                'fsthpgudang',
+                'fsthpgudang/*',
+                'repackgudangjadi',
+                'repackgudangjadi/*',
+                'rejectgudangjadi',
+                'rejectgudangjadi/*',
+                'lainnyagudangjadi',
+                'lainnyagudangjadi/*',
+                'suratjalanangkutan',
+                'suratjalanangkutan/*',
+                'laporangudangjadi',
+                'laporangudangjadi/*',
+                'kontrabonangkutan',
+                'kontrabonangkutan/*',
+            ];
+
+            $gudang_jadi_permission = [
+                'suratjalan.index',
+                'fsthpgudang.index',
+                'sagudangjadi.index',
+                'repackgudangjadi.index',
+                'rejectgudangjadi.index',
+                'lainnyagudangjadi.index',
+                'kontrabonangkutan.index',
+                'gj.persediaan',
+                'gj.rekappersediaan',
+                'gj.rekaphasilproduksi',
+                'gj.rekappengeluaran',
+                'gj.realisasikiriman',
+                'gj.realisasioman',
+                'gj.angkutan',
+                'suratjalanangkutan.index',
+            ];
+
+            $gudang_jadi_mutasi_request = [
+                'sagudangjadi',
+                'sagudangjadi/*',
+                'suratjalan',
+                'suratjalan/*',
+                'fsthpgudang',
+                'fsthpgudang/*',
+                'repackgudangjadi',
+                'repackgudangjadi/*',
+                'rejectgudangjadi',
+                'rejectgudangjadi/*',
+                'lainnyagudangjadi',
+                'lainnyagudangjadi/*',
+            ];
+
+            $gudang_jadi_mutasi_permission = [
+                'sagudangjadi.index',
+                'suratjalan.index',
+                'fsthpgudang.index',
+                'repackgudangjadi.index',
+                'lainnyagudangjadi.index',
+            ];
+            $gudang_jadi_laporan_permission = [
+                'gj.persediaan',
+                'gj.rekappersediaan',
+                'gj.rekaphasilproduksi',
+                'gj.rekappengeluaran',
+                'gj.realisasikiriman',
+                'gj.realisasioman',
+                'gj.angkutan'
+            ];
+
+            //Gudang Bahan
+            $gudang_bahan_request = [
+                'barangmasukgudangbahan',
+                'barangmasukgudangbahan/*',
+                'barangkeluargudangbahan',
+                'barangkeluargudangbahan/*',
+                'sagudangbahan',
+                'sagudangbahan/*',
+                'sahargagb',
+                'sahargagb/*',
+                'opgudangbahan',
+                'opgudangbahan/*',
+                'laporangudangbahan',
+                'laporangudangbahan/*'
+            ];
+
+
+
+            $gudang_bahan_mutasi_request = [
+                'barangmasukgudangbahan',
+                'barangmasukgudangbahan/*',
+                'barangkeluargudangbahan',
+                'barangkeluargudangbahan/*',
+                'sagudangbahan',
+                'sagudangbahan/*',
+                'sahargagb',
+                'sahargagb/*',
+                'opgudangbahan',
+                'opgudangbahan/*',
+            ];
+
+            $gudang_bahan_mutasi_permission = [
+                'barangmasukgb.index',
+                'barangkeluargb.index',
+                'sagudangbahan.index',
+                'sahargagb.index',
+                'opgudangbahan.index',
+            ];
+
+            $gudang_bahan_laporan_permission = [
+                'gb.barangmasuk',
+                'gb.barangkeluar',
+                'gb.persediaan',
+                'gb.rekappersediaan',
+                'gb.kartugudang',
+            ];
+
+            $gudang_bahan_permission = array_merge($gudang_bahan_mutasi_permission, $gudang_bahan_laporan_permission);
+            $test = 'test';
+
+
+            //Gudang Logistik
+            $gudang_logistik_request = [
+                'barangmasukgudanglogistik',
+                'barangmasukgudanglogistik/*',
+                'barangkeluargudanglogistik',
+                'barangkeluargudanglogistik/*',
+                'sagudanglogistik',
+                'sagudanglogistik/*',
+                'opgudanglogistik',
+                'opgudanglogistik/*',
+                'laporangudanglogistik',
+                'laporangudanglogistik/*',
+                'pembeliangudang',
+                'bpb',
+                'bpb/*',
+            ];
+
+
+
+            $gudang_logistik_mutasi_request = [
+                'barangmasukgudanglogistik',
+                'barangmasukgudanglogistik/*',
+                'barangkeluargudanglogistik',
+                'barangkeluargudanglogistik/*',
+                'sagudanglogistik',
+                'sagudanglogistik/*',
+                'opgudanglogistik',
+                'opgudanglogistik/*',
+            ];
+
+            $gudang_logistik_mutasi_permission = [
+                'barangmasukgl.index',
+                'barangkeluargl.index',
+                'sagudanglogistik.index',
+                'opgudanglogistik.index',
+            ];
+
+            $gudang_logistik_laporan_permission = [
+                'gl.barangmasuk',
+                'gl.barangkeluar',
+                'gl.persediaan',
+                'gl.persediaanopname',
+            ];
+            $gudang_logistik_permission = array_merge($gudang_logistik_mutasi_permission, $gudang_logistik_laporan_permission, ['bpb.index']);
+
+            //Gudang Cabang
+            $gudang_cabang_request = [
+                'suratjalancabang',
+                'dpb',
+                'dpb/*',
+                'transitin',
+                'reject',
+                'repackcbg',
+                'kirimpusat',
+                'penygudangcbg',
+                'sagudangcabang',
+                'sagudangcabang/*',
+                'laporangudangcabang'
+            ];
+
+            $gudang_cabang_laporan_permission = [
+                'gc.goodstok',
+                'gc.badstok',
+                'gc.rekappersediaan',
+                'gc.mutasidpb',
+                'gc.monitoringretur',
+                'gc.rekonsiliasibj'
+            ];
+            $gudang_cabang_permission = array_merge($gudang_cabang_laporan_permission, [
+                'suratjalancabang.index',
+                'dpb.index',
+                'transitin.index',
+                'reject.index',
+                'repackcbg.index',
+                'kirimpusat.index',
+                'penygudangcbg.index',
+                'sagudangcabang.index',
+            ]);
+
+            $users = User::select("*")
+                ->whereNotNull('last_seen')
+                ->orderBy('last_seen', 'DESC')
+                ->limit(10)
+                ->get();
+            $shareddata = [
+                'roles_show_cabang' => $roles_show_cabang,
+                'roles_show_cabang_pjp' => $roles_show_cabang_pjp,
+                'start_periode' => $start_periode,
+                'end_periode' => $end_periode,
+                'namabulan' => $namabulan,
+
+                'datamaster_request' => $datamaster_request,
+                'datamaster_permission' => $datamaster_permission,
+                'level_user' => $level_user,
+                'produksi_request' => $produksi_request,
+                'produksi_permission' => $produksi_permission,
+                'produksi_mutasi_produk_request' => $produksi_mutasi_produk_request,
+                'produksi_mutasi_produk_permission' => $produksi_mutasi_produk_permission,
+                'produksi_mutasi_barang_request' => $produksi_mutasi_barang_request,
+                'produksi_mutasi_barang_permission' => $produksi_mutasi_barang_permission,
+                'produksi_laporan_permission' => $produksi_laporan_permission,
+
+
+                'gudang_jadi_request' => $gudang_jadi_request,
+                'gudang_jadi_permission' => $gudang_jadi_permission,
+                'gudang_jadi_mutasi_request' => $gudang_jadi_mutasi_request,
+                'gudang_jadi_mutasi_permission' => $gudang_jadi_mutasi_permission,
+                'gudang_jadi_laporan_permission' => $gudang_jadi_laporan_permission,
+
+
+                'gudang_bahan_request' => $gudang_bahan_request,
+                'gudang_bahan_permission' => $gudang_bahan_permission,
+                'gudang_bahan_mutasi_request' => $gudang_bahan_mutasi_request,
+                'gudang_bahan_mutasi_permission' => $gudang_bahan_mutasi_permission,
+                'gudang_bahan_laporan_permission' => $gudang_bahan_laporan_permission,
+
+                'gudang_logistik_request' => $gudang_logistik_request,
+                'gudang_logistik_permission' => $gudang_logistik_permission,
+                'gudang_logistik_mutasi_request' => $gudang_logistik_mutasi_request,
+                'gudang_logistik_mutasi_permission' => $gudang_logistik_mutasi_permission,
+                'gudang_logistik_laporan_permission' => $gudang_logistik_laporan_permission,
+
+                //Gudang Cabang
+                'gudang_cabang_request' => $gudang_cabang_request,
+                'gudang_cabang_permission' => $gudang_cabang_permission,
+                'gudang_cabang_laporan_permission' => $gudang_cabang_laporan_permission,
+
+
+                //Notifikasi
+                'notifikasi_limitkredit' => $notifikasi_limitkredit,
+                'notifikasi_ajuanfaktur' => $notifikasi_ajuanfaktur,
+                'notifikasi_pengajuan_marketing' => $notifikasi_pengajuan_marketing,
+                'notifikasi_target' => $notifikasi_target,
+                'notifikasi_komisi' => $notifikasi_komisi,
+                'notifikasi_marketing' => $notifikasi_marketing,
+
+                'notifikasi_penilaiankaryawan' => $notifikasi_penilaiankaryawan,
+                'notifikasi_pengajuan_izin' => $notifikasi_pengajuan_izin,
+
+                'notifikasi_izinabsen' => $notifikasi_izinabsen,
+                'notifikasi_izinpulang' => $notifikasi_izinpulang,
+                'notifikasi_izinterlambat' => $notifikasi_izinterlambat,
+                'notifikasi_izinkeluar' => $notifikasi_izinkeluar,
+                'notifikasi_izinabsen' => $notifikasi_izinabsen,
+                'notifikasi_izincuti' => $notifikasi_izincuti,
+                'notifikasi_izinsakit' => $notifikasi_izinsakit,
+                'notifikasi_lembur' => $notifikasi_lembur,
+                'notifikasi_izinkoreksi' => $notifikasi_izinkoreksi,
+                'notifikasi_hrd' => $notifikasi_hrd,
+                'notifikasi_izindinas' => $notifikasi_izindinas,
+
+                'notifikasiajuantransferdana' => $notifikasiajuantransferdana,
+
+                'total_notifikasi' => $total_notifikasi,
+
+                'notifikasi_ajuanprogramikatan' => $notifikasi_ajuanprogramikatan,
+                'notifikasi_pencairanprogramikatan' => $notifikasi_pencairanprogramikatan,
+                'notifikasi_ajuanprogramkumulatif' => $notifikasi_ajuanprogramkumulatif,
+                'notifikasi_pencairanprogramkumulatif' => $notifikasi_pencairanprogramkumulatif,
+                'notifikasi_ajuanprogramikatanenambulan' => $notifikasi_ajuanprogramikatanenambulan,
+                'notifikasi_pencairanprogramikatanenambulan' => $notifikasi_pencairanprogramikatanenambulan,
+                'notifikasi_ajuan_program' => $notifikasi_ajuan_program,
+
+                'notifikasi_ticket' => $notifikasi_ticket,
+                'notifikasi_update_data' => $notifikasi_update_data,
+
+                'total_notifikasi_izin_spvpresensi' => $notifikasi_pengajuan_izin,
+                'notifikasi_izinabsen_presensi' => $notifikasi_izinabsen,
+                'notifikasi_izinpulang_presensi' => $notifikasi_izinpulang,
+                'notifikasi_izinterlambat_presensi' => $notifikasi_izinterlambat,
+                'notifikasi_izinkeluar_presensi' => $notifikasi_izinkeluar,
+                'notifikasi_izincuti_presensi' => $notifikasi_izincuti,
+                'notifikasi_izinsakit_presensi' => $notifikasi_izinsakit,
+                'notifikasi_izinkoreksi_presensi' => $notifikasi_izinkoreksi,
+                'notifikasi_izindinas_presensi' => $notifikasi_izindinas,
+
+                'notifIM' => $notifIM,
+
+
+                'users' => $users
+
+            ];
+            View::share($shareddata);
+        });
+    }
+}

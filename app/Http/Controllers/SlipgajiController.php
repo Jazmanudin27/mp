@@ -1,0 +1,126 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Slipgaji;
+use App\Models\Karyawan;
+use App\Notifications\SalarySlipNotification;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Notification;
+use App\Jobs\SendSalarySlipNotificationJob;
+
+class SlipgajiController extends Controller
+{
+    public function index()
+    {
+        $data['slipgaji'] = Slipgaji::orderBy('tahun')->orderBy('bulan')->get();
+        return view('hrd.slipgaji.index', $data);
+    }
+
+    public function create()
+    {
+        $data['list_bulan'] = config('global.list_bulan');
+        $data['start_year'] = config('global.start_year');
+        return view('hrd.slipgaji.create', $data);
+    }
+
+    public function store(Request $request)
+    {
+
+        try {
+            Slipgaji::create([
+                'kode_gaji' => 'GJ' . $request->bulan . $request->tahun,
+                'bulan' => $request->bulan,
+                'tahun' => $request->tahun,
+                'status' => $request->status
+            ]);
+
+            // Auto Notify if Published
+            if ($request->status == 1) {
+                SendSalarySlipNotificationJob::dispatch($request->bulan, $request->tahun);
+            }
+
+            return Redirect::back()->with(messageSuccess('Data Berhasil Disimpan'));
+        } catch (\Exception $e) {
+            return Redirect::back()->with(messageError($e->getMessage()));
+        }
+    }
+
+    public function edit($kode_gaji)
+    {
+        $kode_gaji = Crypt::decrypt($kode_gaji);
+        $data['slipgaji'] = Slipgaji::where('kode_gaji', $kode_gaji)->first();
+        $data['list_bulan'] = config('global.list_bulan');
+        $data['start_year'] = config('global.start_year');
+        return view('hrd.slipgaji.edit', $data);
+    }
+
+    public function update(Request $request, $kode_gaji)
+    {
+        $kode_gaji = Crypt::decrypt($kode_gaji);
+        try {
+            Slipgaji::where('kode_gaji', $kode_gaji)->update([
+                'bulan' => $request->bulan,
+                'tahun' => $request->tahun,
+                'status' => $request->status
+            ]);
+
+            //Auto Notify if Published
+            if ($request->status == 1) {
+                SendSalarySlipNotificationJob::dispatch($request->bulan, $request->tahun);
+            }
+
+            return Redirect::back()->with(messageSuccess('Data Berhasil Disimpan'));
+        } catch (\Exception $e) {
+            return Redirect::back()->with(messageError($e->getMessage()));
+        }
+    }
+
+    public function destroy($kode_gaji)
+    {
+        $kode_gaji = Crypt::decrypt($kode_gaji);
+        try {
+            Slipgaji::where('kode_gaji', $kode_gaji)->delete();
+            return Redirect::back()->with(messageSuccess('Data Berhasil Dihapus'));
+        } catch (\Exception $e) {
+            return Redirect::back()->with(messageError($e->getMessage()));
+        }
+    }
+
+
+    public function cetakslipgaji($nik, $bulan, $tahun)
+    {
+        $nik = Crypt::decrypt($nik);
+        $apiController = new \App\Http\Controllers\Api\SlipgajiController();
+        $response = $apiController->show($bulan, $tahun, $nik);
+        $data = json_decode($response->getContent(), true);
+
+        if (!$data || (isset($data['success']) && !$data['success'])) {
+            return Redirect::back()->with(messageError($data['message'] ?? 'Data tidak ditemukan'));
+        }
+
+
+        $privillage_karyawan = [
+            '16.11.266',
+            '22.08.339',
+            '19.10.142',
+            '17.03.025',
+            '00.12.062',
+            '08.07.092',
+            '16.05.259',
+            '17.08.023',
+            '15.10.043',
+            '17.07.302',
+            '15.10.143',
+            '03.03.065',
+            '23.12.337',
+        ];
+        $data['privillage_karyawan'] = $privillage_karyawan;
+
+        return view('hrd.slipgaji.cetakslip', $data);
+    }
+}
