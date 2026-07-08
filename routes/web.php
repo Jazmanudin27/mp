@@ -1541,6 +1541,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/pembelian', 'index')->name('pembelian.index')->can('pembelian.index');
         Route::get('/pembelian/create', 'create')->name('pembelian.create')->can('pembelian.create');
         Route::get('/pembelian/{no_bukti}/show', 'show')->name('pembelian.show')->can('pembelian.show');
+        Route::get('/pembelian/{no_bukti}/cetak', 'cetak')->name('pembelian.cetak')->can('pembelian.show');
         Route::get('/pembelian/{no_bukti}/approvegdl', 'approvegdl')->name('pembelian.approvegdl')->can('pembelian.approvegdl');
         Route::post('/pembelian/{no_bukti}/storeapprovegdl', 'storeapprovegdl')->name('pembelian.storeapprovegdl')->can('pembelian.approvegdl');
         Route::delete('/pembelian/{no_bukti}/cancelapprovegdl', 'cancelapprovegdl')->name('pembelian.cancelapprovegdl')->can('pembelian.approvegdl');

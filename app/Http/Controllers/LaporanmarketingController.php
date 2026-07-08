@@ -19,7 +19,6 @@ use App\Models\Dpb;
 use App\Models\Dpbdriverhelper;
 use App\Models\Driverhelper;
 use App\Models\Historibayarpenjualan;
-use App\Models\Harga;
 use App\Models\Kategorikomisi;
 use App\Models\Kendaraan;
 use App\Models\Movefaktur;
@@ -29,11 +28,9 @@ use App\Models\Produk;
 use App\Models\Ratiokomisidriverhelper;
 use App\Models\Retur;
 use App\Models\Saldoawalpiutangpelanggan;
-use App\Models\Saldoawalpiutangsalesman;
 use App\Models\Salesman;
 use App\Models\Setoranpenjualan;
 use App\Models\Setoranpusat;
-use App\Models\Targetkomisi;
 use App\Models\User;
 use DateInterval;
 use DatePeriod;
@@ -6925,11 +6922,28 @@ class LaporanmarketingController extends Controller
         }
         $ratiobs = $query->get();
 
+        $harga_master_cabang = DB::table('produk_harga')
+            ->select('kode_cabang', 'kode_produk', DB::raw('AVG(IFNULL(NULLIF(harga_retur_dus, 0), harga_dus)) as harga_rata_rata'))
+            ->groupBy('kode_cabang', 'kode_produk')
+            ->get()
+            ->groupBy('kode_cabang')
+            ->map(function ($items) {
+                return $items->pluck('harga_rata_rata', 'kode_produk');
+            })
+            ->toArray();
+
+        $harga_master_global = DB::table('produk_harga')
+            ->select('kode_produk', DB::raw('AVG(IFNULL(NULLIF(harga_retur_dus, 0), harga_dus)) as harga_rata_rata'))
+            ->groupBy('kode_produk')
+            ->pluck('harga_rata_rata', 'kode_produk')
+            ->toArray();
 
         $data['ratiobs'] = $ratiobs;
         $data['bulan'] = $request->bulan;
         $data['tahun'] = $request->tahun;
         $data['produk'] = $produk;
+        $data['harga_master_cabang'] = $harga_master_cabang;
+        $data['harga_master_global'] = $harga_master_global;
         if (isset($_POST['exportButton'])) {
             header("Content-type: application/vnd-ms-excel");
             // Mendefinisikan nama file ekspor "-SahabatEkspor.xls"

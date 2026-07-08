@@ -125,7 +125,8 @@
                                             : ($d->{"retur_lalu_$p->kode_produk"} > 0
                                                 ? $d->{"total_retur_lalu_$p->kode_produk"} /
                                                     ROUND($d->{"retur_lalu_$p->kode_produk"}, 2)
-                                                : 0);
+                                                : $harga_master_cabang[$d->kode_cabang][$p->kode_produk] ??
+                                                    ($harga_master_global[$p->kode_produk] ?? 0));
                                     $total = ROUND($jml_reject, 2) * $harga;
                                     $grand_total += $total;
                                 @endphp

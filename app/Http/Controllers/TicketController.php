@@ -10,7 +10,6 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Redirect;
-use Illuminate\Support\Facades\Storage;
 
 class TicketController extends Controller
 {
@@ -22,10 +21,11 @@ class TicketController extends Controller
         $query = Ticket::query();
         $query->with(['category', 'user', 'managerDept', 'smmUser', 'rsmUser', 'gmUser', 'adminUser'])->withCount('messages');
 
-        if (!$user->hasRole($roles_access_all_cabang)) {
+        $roles_it_admin = ['super admin', 'admin maintenance'];
+
+        if (!$user->hasRole($roles_it_admin)) {
             $query->where(function ($q) use ($user) {
-                $q->where('kode_cabang', $user->kode_cabang)
-                    ->orWhere('id_user', $user->id)
+                $q->where('id_user', $user->id)
                     ->orWhere('id_manager_dept', $user->id)
                     ->orWhere('id_smm', $user->id)
                     ->orWhere('id_rsm', $user->id)
@@ -68,10 +68,9 @@ class TicketController extends Controller
         $tickets->appends($request->all());
 
         $statsBaseQuery = Ticket::query();
-        if (!$user->hasRole($roles_access_all_cabang)) {
+        if (!$user->hasRole($roles_it_admin)) {
             $statsBaseQuery->where(function ($q) use ($user) {
-                $q->where('kode_cabang', $user->kode_cabang)
-                    ->orWhere('id_user', $user->id)
+                $q->where('id_user', $user->id)
                     ->orWhere('id_manager_dept', $user->id)
                     ->orWhere('id_smm', $user->id)
                     ->orWhere('id_rsm', $user->id)
@@ -96,8 +95,45 @@ class TicketController extends Controller
 
     public function create()
     {
+        $user = auth()->user();
         $categories = TicketCategory::where('is_active', true)->get();
-        return view('utilities.ticket.create', compact('categories'));
+
+        // SMM List in this branch
+        $smmList = User::where('kode_cabang', $user->kode_cabang)
+            ->whereHas('roles', function ($q) {
+                $q->whereIn('name', ['sales marketing manager']);
+            })->get();
+
+        // RSM List for this regional
+        $cabangObj = Cabang::where('kode_cabang', $user->kode_cabang)->first();
+        $kode_regional = $cabangObj ? $cabangObj->kode_regional : $user->kode_regional;
+        $rsmList = User::where('kode_regional', $kode_regional)
+            ->whereHas('roles', function ($q) {
+                $q->whereIn('name', ['regional sales manager']);
+            })->get();
+
+        // GM List
+        $gmList = User::whereHas('roles', function ($q) {
+            $q->whereIn('name', ['gm marketing', 'gm administrasi', 'gm operasional']);
+        })->get();
+
+        // Manager/Head List for PST
+        if (empty($user->kode_jabatan) || $user->kode_jabatan == '') {
+            // Regular staff: only show managers from the same department
+            $managerList = User::where('kode_dept', $user->kode_dept)
+                ->whereNotNull('kode_jabatan')
+                ->where('kode_jabatan', '!=', '')
+                ->orderBy('name', 'asc')
+                ->get();
+        } else {
+            // Manager: show all managers
+            $managerList = User::whereNotNull('kode_jabatan')
+                ->where('kode_jabatan', '!=', '')
+                ->orderBy('name', 'asc')
+                ->get();
+        }
+
+        return view('utilities.ticket.create', compact('categories', 'smmList', 'rsmList', 'gmList', 'managerList'));
     }
 
     public function getCategoryDetail($id)
@@ -156,50 +192,33 @@ class TicketController extends Controller
         $posisi_approval = 'ADMIN';
 
         if ($user->kode_cabang == 'PST') {
-            // Cabang PST (Pusat): Goes to Manager Dept first
-            $managerRoleNames = [
-                'manager keuangan', 'manager general affair', 'manager gudang',
-                'asst. manager hrd', 'manager pembelian', 'manager produksi',
-                'manager maintenance', 'manager audit'
-            ];
+            // Cabang PST (Pusat): Goes to Manager Dept
+            if ($request->has('perlu_manager_dept') && $request->id_manager_dept) {
+                $id_manager_dept = $request->id_manager_dept;
+            }
 
-            $manager = User::where('kode_dept', $user->kode_dept)
-                ->whereHas('roles', function ($q) use ($managerRoleNames) {
-                    $q->whereIn('name', $managerRoleNames);
-                })->first();
-
-            // If user IS the manager, bypass to ADMIN
-            if ($manager && $manager->id != $user->id) {
-                $id_manager_dept = $manager->id;
+            if ($id_manager_dept && $id_manager_dept != $user->id) {
                 $posisi_approval = 'MANAGER_DEPT';
             } else {
                 $posisi_approval = 'ADMIN';
             }
         } else {
             // Non-PST (Branch): SMM -> RSM -> GM -> ADMIN
-            $smm = User::where('kode_cabang', $user->kode_cabang)
-                ->whereHas('roles', function ($q) {
-                    $q->whereIn('name', ['sales marketing manager', 'operation manager']);
-                })->first();
+            if ($request->has('perlu_smm') && $request->id_smm) {
+                $id_smm = $request->id_smm;
+            }
+            if ($request->has('perlu_rsm') && $request->id_rsm) {
+                $id_rsm = $request->id_rsm;
+            }
+            if ($request->has('perlu_gm') && $request->id_gm) {
+                $id_gm = $request->id_gm;
+            }
 
-            $rsm = User::where('kode_regional', $user->kode_regional)
-                ->whereHas('roles', function ($q) {
-                    $q->whereIn('name', ['regional sales manager']);
-                })->first();
-
-            $gm = User::whereHas('roles', function ($q) {
-                $q->whereIn('name', ['gm marketing', 'gm administrasi', 'gm operasional']);
-            })->first();
-
-            $id_smm = $smm ? $smm->id : null;
-            $id_rsm = $rsm ? $rsm->id : null;
-            $id_gm = $gm ? $gm->id : null;
-
-            if ($category->perlu_smm && $id_smm && $id_smm != $user->id) {
+            if ($id_smm && $id_smm != $user->id) {
                 $posisi_approval = 'SMM';
-            } elseif ($category->perlu_rsm && $id_rsm && $id_rsm != $user->id) {
+            } elseif ($id_rsm && $id_rsm != $user->id) {
                 $posisi_approval = 'RSM';
-            } elseif ($category->perlu_gm && $id_gm && $id_gm != $user->id) {
+            } elseif ($id_gm && $id_gm != $user->id) {
                 $posisi_approval = 'GM';
             } else {
                 $posisi_approval = 'ADMIN';
@@ -236,9 +255,47 @@ class TicketController extends Controller
 
     public function edit($kode_pengajuan)
     {
-        $ticket = Ticket::with(['category'])->where('kode_pengajuan', $kode_pengajuan)->firstOrFail();
+        $ticket = Ticket::with(['category', 'user'])->where('kode_pengajuan', $kode_pengajuan)->firstOrFail();
         $categories = TicketCategory::where('is_active', true)->get();
-        return view('utilities.ticket.edit', compact('ticket', 'categories'));
+
+        $owner = $ticket->user;
+
+        // SMM List in owner's branch
+        $smmList = User::where('kode_cabang', $owner->kode_cabang)
+            ->whereHas('roles', function ($q) {
+                $q->whereIn('name', ['sales marketing manager']);
+            })->get();
+
+        // RSM List for owner's regional
+        $cabangObj = Cabang::where('kode_cabang', $owner->kode_cabang)->first();
+        $kode_regional = $cabangObj ? $cabangObj->kode_regional : $owner->kode_regional;
+        $rsmList = User::where('kode_regional', $kode_regional)
+            ->whereHas('roles', function ($q) {
+                $q->whereIn('name', ['regional sales manager']);
+            })->get();
+
+        // GM List
+        $gmList = User::whereHas('roles', function ($q) {
+            $q->whereIn('name', ['gm marketing', 'gm administrasi', 'gm operasional']);
+        })->get();
+
+        // Manager/Head List for PST
+        if (empty($owner->kode_jabatan) || $owner->kode_jabatan == '') {
+            // Regular staff: only show managers from the same department
+            $managerList = User::where('kode_dept', $owner->kode_dept)
+                ->whereNotNull('kode_jabatan')
+                ->where('kode_jabatan', '!=', '')
+                ->orderBy('name', 'asc')
+                ->get();
+        } else {
+            // Manager: show all managers
+            $managerList = User::whereNotNull('kode_jabatan')
+                ->where('kode_jabatan', '!=', '')
+                ->orderBy('name', 'asc')
+                ->get();
+        }
+
+        return view('utilities.ticket.edit', compact('ticket', 'categories', 'smmList', 'rsmList', 'gmList', 'managerList'));
     }
 
     public function update($kode_pengajuan, Request $request)
@@ -269,6 +326,55 @@ class TicketController extends Controller
             $filename = 'lampiran_tk_' . time() . '_' . str_replace(' ', '_', $file->getClientOriginalName());
             $file->move(public_path('uploads/tickets'), $filename);
             $data['lampiran'] = 'uploads/tickets/' . $filename;
+        }
+
+        if ($ticket->status == '0') {
+            if ($ticket->kode_cabang == 'PST') {
+                $id_manager_dept = null;
+                if ($request->has('perlu_manager_dept') && $request->id_manager_dept) {
+                    $id_manager_dept = $request->id_manager_dept;
+                }
+                $data['id_manager_dept'] = $id_manager_dept;
+
+                if (empty($ticket->manager_approved_at)) {
+                    if ($id_manager_dept && $id_manager_dept != $ticket->id_user) {
+                        $data['posisi_approval'] = 'MANAGER_DEPT';
+                    } else {
+                        $data['posisi_approval'] = 'ADMIN';
+                    }
+                }
+            } else {
+                $id_smm = null;
+                $id_rsm = null;
+                $id_gm = null;
+
+                if ($request->has('perlu_smm') && $request->id_smm) {
+                    $id_smm = $request->id_smm;
+                }
+                if ($request->has('perlu_rsm') && $request->id_rsm) {
+                    $id_rsm = $request->id_rsm;
+                }
+                if ($request->has('perlu_gm') && $request->id_gm) {
+                    $id_gm = $request->id_gm;
+                }
+
+                $data['id_smm'] = $id_smm;
+                $data['id_rsm'] = $id_rsm;
+                $data['id_gm'] = $id_gm;
+
+                // Recalculate posisi_approval if no approvals have been made yet
+                if (empty($ticket->smm_approved_at) && empty($ticket->rsm_approved_at) && empty($ticket->gm_approved_at)) {
+                    if ($id_smm && $id_smm != $ticket->id_user) {
+                        $data['posisi_approval'] = 'SMM';
+                    } elseif ($id_rsm && $id_rsm != $ticket->id_user) {
+                        $data['posisi_approval'] = 'RSM';
+                    } elseif ($id_gm && $id_gm != $ticket->id_user) {
+                        $data['posisi_approval'] = 'GM';
+                    } else {
+                        $data['posisi_approval'] = 'ADMIN';
+                    }
+                }
+            }
         }
 
         try {
@@ -325,16 +431,16 @@ class TicketController extends Controller
             $updateData['posisi_approval'] = 'ADMIN';
         } elseif ($posisi == 'SMM') {
             $updateData['smm_approved_at'] = date('Y-m-d H:i:s');
-            if ($category && $category->perlu_rsm && $ticket->id_rsm) {
+            if ($ticket->id_rsm) {
                 $updateData['posisi_approval'] = 'RSM';
-            } elseif ($category && $category->perlu_gm && $ticket->id_gm) {
+            } elseif ($ticket->id_gm) {
                 $updateData['posisi_approval'] = 'GM';
             } else {
                 $updateData['posisi_approval'] = 'ADMIN';
             }
         } elseif ($posisi == 'RSM') {
             $updateData['rsm_approved_at'] = date('Y-m-d H:i:s');
-            if ($category && $category->perlu_gm && $ticket->id_gm) {
+            if ($ticket->id_gm) {
                 $updateData['posisi_approval'] = 'GM';
             } else {
                 $updateData['posisi_approval'] = 'ADMIN';

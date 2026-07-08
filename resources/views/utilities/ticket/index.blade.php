@@ -8,53 +8,111 @@
 
 <style>
     .ticket-header-banner {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        border-radius: 16px;
-        padding: 24px 28px;
-        box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.3);
+        background: linear-gradient(135deg, #312e81 0%, #1e1b4b 40%, #0f172a 100%);
+        border-radius: 20px;
+        padding: 32px 36px;
+        box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.35);
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .ticket-header-banner::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 350px;
+        height: 350px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0) 70%);
+        pointer-events: none;
     }
 
     .stat-card-modern {
-        border: 1px solid rgba(226, 232, 240, 0.8);
-        border-radius: 14px;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
         background: #ffffff;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        padding: 20px !important;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.01);
     }
 
     .stat-card-modern:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.08);
+        transform: translateY(-4px);
+        box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.08);
         border-color: #cbd5e1;
     }
 
+    .stat-card-modern::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        opacity: 0.8;
+    }
+
+    .stat-card-modern.total-card::after {
+        background: #4f46e5;
+    }
+
+    .stat-card-modern.pending-card::after {
+        background: #f59e0b;
+    }
+
+    .stat-card-modern.proses-card::after {
+        background: #06b6d4;
+    }
+
+    .stat-card-modern.selesai-card::after {
+        background: #10b981;
+    }
+
     .stat-icon-box {
-        width: 48px;
-        height: 48px;
-        border-radius: 12px;
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.5rem;
+        font-size: 1.6rem;
+        transition: all 0.3s ease;
+    }
+
+    .stat-card-modern:hover .stat-icon-box {
+        transform: scale(1.1) rotate(5deg);
     }
 
     .table-ticket-modern {
         border-collapse: separate;
-        border-spacing: 0 10px;
+        border-spacing: 0 12px;
+        width: 100%;
+    }
+
+    .table-ticket-modern thead tr th {
+        border: none;
+        padding: 8px 20px;
     }
 
     .table-ticket-modern tbody tr {
         background: #ffffff;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
-        border-radius: 12px;
-        transition: all 0.2s ease;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.01), 0 2px 4px -1px rgba(0, 0, 0, 0.01);
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 16px;
     }
 
     .table-ticket-modern tbody tr:hover {
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+        transform: translateY(-2px);
+        box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.08);
+        background: #fafafa;
     }
 
     .table-ticket-modern td {
-        padding: 16px 18px;
+        padding: 20px 20px;
         vertical-align: middle;
         border-top: 1px solid #f1f5f9;
         border-bottom: 1px solid #f1f5f9;
@@ -62,44 +120,64 @@
 
     .table-ticket-modern td:first-child {
         border-left: 1px solid #f1f5f9;
-        border-top-left-radius: 12px;
-        border-bottom-left-radius: 12px;
+        border-top-left-radius: 16px;
+        border-bottom-left-radius: 16px;
     }
 
     .table-ticket-modern td:last-child {
         border-right: 1px solid #f1f5f9;
-        border-top-right-radius: 12px;
-        border-bottom-right-radius: 12px;
+        border-top-right-radius: 16px;
+        border-bottom-right-radius: 16px;
     }
 
     .avatar-user-badge {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
         color: #ffffff;
         font-weight: 700;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.85rem;
+        font-size: 0.95rem;
+        box-shadow: 0 4px 10px rgba(79, 70, 229, 0.25);
     }
 
-    .badge-urgent-pulse {
-        background-color: #fef2f2;
+    /* Glow priority styles */
+    .badge-priority-modern {
+        font-weight: 600;
+        padding: 5px 12px;
+        border-radius: 30px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75rem;
+    }
+
+    .priority-urgent {
+        background: #fef2f2;
         color: #ef4444;
         border: 1px solid #fca5a5;
-        font-weight: 700;
-        animation: badgeGlow 1.8s infinite;
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
     }
 
-    @keyframes badgeGlow {
+    .priority-urgent .pulse-dot {
+        width: 8px;
+        height: 8px;
+        background-color: #ef4444;
+        border-radius: 50%;
+        display: inline-block;
+        animation: priorityPulse 1.5s infinite;
+    }
+
+    @keyframes priorityPulse {
         0% {
-            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
         }
 
         70% {
-            box-shadow: 0 0 0 7px rgba(239, 68, 68, 0);
+            box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
         }
 
         100% {
@@ -107,19 +185,106 @@
         }
     }
 
+    .priority-tinggi {
+        background: #fffbeb;
+        color: #d97706;
+        border: 1px solid #fcd34d;
+    }
+
+    .priority-sedang {
+        background: #eff6ff;
+        color: #2563eb;
+        border: 1px solid #bfdbfe;
+    }
+
+    .priority-rendah {
+        background: #f8fafc;
+        color: #64748b;
+        border: 1px solid #cbd5e1;
+    }
+
     .btn-action-circle {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
         padding: 0;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        transition: all 0.2s ease;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #475569;
     }
 
     .btn-action-circle:hover {
-        transform: scale(1.1);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-action-circle.btn-message-glow {
+        background: #eff6ff;
+        color: #2563eb;
+        border-color: #bfdbfe;
+    }
+
+    .btn-action-circle.btn-message-glow:hover {
+        background: #2563eb;
+        color: #ffffff;
+        border-color: #1d4ed8;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+    }
+
+    .btn-action-circle.btn-approve-glow {
+        background: #ecfdf5;
+        color: #059669;
+        border-color: #a7f3d0;
+    }
+
+    .btn-action-circle.btn-approve-glow:hover {
+        background: #10b981;
+        color: #ffffff;
+        border-color: #047857;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+    }
+
+    .btn-action-circle.btn-edit-glow {
+        background: #fffbeb;
+        color: #d97706;
+        border-color: #fde68a;
+    }
+
+    .btn-action-circle.btn-edit-glow:hover {
+        background: #f59e0b;
+        color: #ffffff;
+        border-color: #b45309;
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+    }
+
+    .btn-action-circle.btn-delete-glow {
+        background: #fef2f2;
+        color: #dc2626;
+        border-color: #fecaca;
+    }
+
+    .btn-action-circle.btn-delete-glow:hover {
+        background: #ef4444;
+        color: #ffffff;
+        border-color: #b91c1c;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+    }
+
+    .btn-action-circle.btn-view-glow {
+        background: #faf5ff;
+        color: #7c3aed;
+        border-color: #e9d5ff;
+    }
+
+    .btn-action-circle.btn-view-glow:hover {
+        background: #7c3aed;
+        color: #ffffff;
+        border-color: #6d28d9;
+        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
     }
 </style>
 
@@ -144,7 +309,7 @@
                             <div class="d-flex gap-2">
                                 @hasrole('super admin')
                                     <a href="{{ route('ticket.cetaklaporan', request()->all()) }}" target="_blank"
-                                        class="btn btn-outline-light btn-lg fw-bold px-3 py-3 rounded-3"
+                                        class="btn btn-success fw-bold px-3 py-3 rounded-3"
                                         title="Cetak Laporan Evaluation & SLA Tiket">
                                         <i class="ti ti-printer me-2 fs-4"></i>Cetak Laporan
                                     </a>
@@ -160,7 +325,7 @@
                     {{-- KPI Cards --}}
                     <div class="row g-3 mb-4">
                         <div class="col-lg-3 col-md-6 col-sm-6">
-                            <div class="card stat-card-modern p-3">
+                            <div class="card stat-card-modern total-card p-3">
                                 <div class="d-flex align-items-center justify-content-between">
                                     <div>
                                         <span class="text-muted small fw-bold text-uppercase">Total Tiket</span>
@@ -175,7 +340,7 @@
                         </div>
 
                         <div class="col-lg-3 col-md-6 col-sm-6">
-                            <div class="card stat-card-modern p-3">
+                            <div class="card stat-card-modern pending-card p-3">
                                 <div class="d-flex align-items-center justify-content-between">
                                     <div>
                                         <span class="text-muted small fw-bold text-uppercase">Menunggu Approval</span>
@@ -190,7 +355,7 @@
                         </div>
 
                         <div class="col-lg-3 col-md-6 col-sm-6">
-                            <div class="card stat-card-modern p-3">
+                            <div class="card stat-card-modern proses-card p-3">
                                 <div class="d-flex align-items-center justify-content-between">
                                     <div>
                                         <span class="text-muted small fw-bold text-uppercase">Diproses IT</span>
@@ -205,7 +370,7 @@
                         </div>
 
                         <div class="col-lg-3 col-md-6 col-sm-6">
-                            <div class="card stat-card-modern p-3">
+                            <div class="card stat-card-modern selesai-card p-3">
                                 <div class="d-flex align-items-center justify-content-between">
                                     <div>
                                         <span class="text-muted small fw-bold text-uppercase">Tiket Selesai</span>
@@ -319,20 +484,20 @@
                                             </span>
                                             <div>
                                                 @if ($d->priority == 'Urgent')
-                                                    <span class="badge bg-danger text-white fw-bold px-2 py-1">
-                                                        <i class="ti ti-flame me-1"></i>URGENT
+                                                    <span class="badge-priority-modern priority-urgent">
+                                                        <span class="pulse-dot"></span>URGENT
                                                     </span>
                                                 @elseif($d->priority == 'Tinggi')
-                                                    <span class="badge bg-warning text-dark fw-bold px-2 py-1">
-                                                        HIGH
+                                                    <span class="badge-priority-modern priority-tinggi">
+                                                        <i class="ti ti-alert-triangle fs-7"></i>HIGH
                                                     </span>
                                                 @elseif($d->priority == 'Sedang')
-                                                    <span class="badge bg-info text-white fw-bold px-2 py-1">
-                                                        MEDIUM
+                                                    <span class="badge-priority-modern priority-sedang">
+                                                        <i class="ti ti-info-circle fs-7"></i>MEDIUM
                                                     </span>
                                                 @else
-                                                    <span class="badge bg-secondary text-white px-2 py-1">
-                                                        LOW
+                                                    <span class="badge-priority-modern priority-rendah">
+                                                        <i class="ti ti-circle fs-7"></i>LOW
                                                     </span>
                                                 @endif
                                             </div>
@@ -396,7 +561,7 @@
 
                                                 {{-- Chat Thread Button with Notification Badge --}}
                                                 <button
-                                                    class="btn btn-outline-info btn-action-circle position-relative btnMessage"
+                                                    class="btn-action-circle btn-message-glow position-relative btnMessage"
                                                     kode_pengajuan="{{ $d->kode_pengajuan }}"
                                                     title="Diskusi / Chat Tiket">
                                                     <i class="ti ti-message-dots fs-5"></i>
@@ -448,8 +613,7 @@
                                                     @endphp
 
                                                     @if ($isApprover)
-                                                        <button
-                                                            class="btn btn-success btn-action-circle shadow-sm btnApprove"
+                                                        <button class="btn-action-circle btn-approve-glow btnApprove"
                                                             kode_pengajuan="{{ $d->kode_pengajuan }}"
                                                             title="Proses Approval Tiket">
                                                             <i class="ti ti-check fs-5"></i>
@@ -458,8 +622,7 @@
 
                                                     {{-- Edit Button --}}
                                                     @if ($d->id_user == auth()->user()->id || auth()->user()->hasRole('super admin'))
-                                                        <button
-                                                            class="btn btn-outline-warning btn-action-circle btnEdit"
+                                                        <button class="btn-action-circle btn-edit-glow btnEdit"
                                                             kode_pengajuan="{{ $d->kode_pengajuan }}"
                                                             title="Edit Tiket">
                                                             <i class="ti ti-edit fs-5"></i>
@@ -474,7 +637,7 @@
                                                             @csrf
                                                             @method('DELETE')
                                                             <button type="submit"
-                                                                class="btn btn-outline-danger btn-action-circle delete-confirm"
+                                                                class="btn-action-circle btn-delete-glow delete-confirm"
                                                                 title="Hapus Tiket">
                                                                 <i class="ti ti-trash fs-5"></i>
                                                             </button>
@@ -482,8 +645,7 @@
                                                     @endif
                                                 @else
                                                     {{-- View Detail Button --}}
-                                                    <button
-                                                        class="btn btn-outline-secondary btn-action-circle btnApprove"
+                                                    <button class="btn-action-circle btn-view-glow btnApprove"
                                                         kode_pengajuan="{{ $d->kode_pengajuan }}"
                                                         title="Lihat Detail Tiket">
                                                         <i class="ti ti-eye fs-5"></i>
