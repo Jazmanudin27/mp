@@ -537,31 +537,31 @@ class BPBPembelianController extends Controller
             ->pluck('total', 'kode_barang');
         return view('pembelian.bpb.show', $data);
     }
-    private function generateNoSerahTerima()
+    private function generateNoSerahTerima($ppn)
     {
         $bulan = date('n');
         $tahun = date('Y');
 
-        $prefix = 'GL/MP';
+        $prefix = $ppn == 1 ? 'GB/CVMP' : 'GL/MP';
 
         // Romawi
         $romawi = [
             1 => 'I',
-            'II',
-            'III',
-            'IV',
-            'V',
-            'VI',
-            'VII',
-            'VIII',
-            'IX',
-            'X',
-            'XI',
-            'XII'
+            2 => 'II',
+            3 => 'III',
+            4 => 'IV',
+            5 => 'V',
+            6 => 'VI',
+            7 => 'VII',
+            8 => 'VIII',
+            9 => 'IX',
+            10 => 'X',
+            11 => 'XI',
+            12 => 'XII'
         ];
         $bulanRomawi = $romawi[$bulan];
 
-        // Ambil nomor terakhir khusus GL/MP bulan ini
+        // Ambil nomor terakhir khusus prefix bulan ini
         $last = DB::table('pembelian')
             ->where('no_bukti', 'like', $prefix . '/%')
             ->whereMonth('tanggal', $bulan)
@@ -589,7 +589,8 @@ class BPBPembelianController extends Controller
             $request->validate([
                 'no_ref' => 'required',
                 'tanggal_diserahkan' => 'required',
-                'kode_supplier' => 'required'
+                'kode_supplier' => 'required',
+                'ppn' => 'required'
             ]);
 
             $no_bpb = $request->no_ref;
@@ -621,7 +622,7 @@ class BPBPembelianController extends Controller
                 ->pluck('total', 'kode_barang');
 
             // 4. Generate nomor bukti
-            $no_bukti = $this->generateNoSerahTerima();
+            $no_bukti = $this->generateNoSerahTerima($request->ppn);
 
             // =========================
             // ✅ INSERT PEMBELIAN (HEADER)
@@ -633,7 +634,7 @@ class BPBPembelianController extends Controller
                 'kode_asal_pengajuan' => 'GDL',
                 'jenis_transaksi' => 'T',
                 'jatuh_tempo' => $request->tanggal_diserahkan,
-                'ppn' => 0,
+                'ppn' => $request->ppn,
                 'kategori_transaksi' => '',
                 'kode_akun' => '2-1300',
                 'id_user' => auth()->user()->id,

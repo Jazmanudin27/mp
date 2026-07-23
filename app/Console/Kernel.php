@@ -12,7 +12,20 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        $time = '09:00';
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('wa_settings')) {
+                $dbTime = \App\Models\WaSetting::value('scheduled_time');
+                if ($dbTime) {
+                    $time = substr($dbTime, 0, 5); // Format: 'HH:MM'
+                }
+            }
+        } catch (\Exception $e) {
+            // Database not ready fallback
+        }
+
+        $schedule->command('wa:generate-notifications')->dailyAt($time);
+        $schedule->command('wa:process-outbox')->everyMinute();
     }
 
     /**

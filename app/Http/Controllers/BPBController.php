@@ -273,16 +273,93 @@ class BPBController extends Controller
         $kode_bpb = Crypt::decrypt($kode_bpb);
         DB::beginTransaction();
         try {
+            $bpb = DB::table('bpb')->where('no_bpb', $kode_bpb)->first();
+            if (!$bpb) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'BPB tidak ditemukan'
+                ], 404);
+            }
+
             if ($request->approve == '1') {
+                // Gudang approval
+                if ($bpb->kode_dept == 'MTC') {
+                    if ($bpb->approve_manager != '1' || $bpb->approve_direktur != '1') {
+                        return response()->json([
+                            'status' => false,
+                            'message' => 'BPB MTC harus disetujui Manager dan Direktur terlebih dahulu'
+                        ], 400);
+                    }
+                } else {
+                    if ($bpb->approve_head_dept != '1') {
+                        return response()->json([
+                            'status' => false,
+                            'message' => 'BPB harus disetujui Head Dept terlebih dahulu'
+                        ], 400);
+                    }
+                }
+
                 $updated = DB::table('bpb')
                     ->where('no_bpb', $kode_bpb)
-                    ->where('approve_head_dept', '1')
                     ->update([
                         'approve_gudang' => '1',
                         'tgl_gudang' => now(),
                         'updated_at' => now()
                     ]);
+            } elseif ($request->approve == 'manager') {
+                // Manager MTC approval
+                if ($bpb->kode_dept != 'MTC') {
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Hanya untuk departemen MTC'
+                    ], 400);
+                }
+
+                $updated = DB::table('bpb')
+                    ->where('no_bpb', $kode_bpb)
+                    ->where('approve_manager', '0')
+                    ->update([
+                        'approve_manager' => '1',
+                        'approve_user_manager' => Auth::user()->id,
+                        'tgl_approve_manager' => now(),
+                        'updated_at' => now()
+                    ]);
+            } elseif ($request->approve == 'direktur') {
+                // Direktur approval for MTC
+                if ($bpb->kode_dept != 'MTC') {
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Hanya untuk departemen MTC'
+                    ], 400);
+                }
+                if ($bpb->approve_manager != '1') {
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Harus disetujui Manager MTC terlebih dahulu'
+                    ], 400);
+                }
+
+                $updated = DB::table('bpb')
+                    ->where('no_bpb', $kode_bpb)
+                    ->where('approve_direktur', '0')
+                    ->update([
+                        'approve_direktur' => '1',
+                        'approve_user_direktur' => Auth::user()->id,
+                        'tgl_approve_direktur' => now(),
+                        'approve_head_dept' => '1', // Set ini agar sinkron dengan modul logistik/pembelian lainnya
+                        'approve_user' => Auth::user()->id,
+                        'tgl_head_dept' => now(),
+                        'updated_at' => now()
+                    ]);
             } else {
+                // Standard head dept approval for non-MTC
+                if ($bpb->kode_dept == 'MTC') {
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Gunakan alur approval Manager/Direktur untuk MTC'
+                    ], 400);
+                }
+
                 $updated = DB::table('bpb')
                     ->where('no_bpb', $kode_bpb)
                     ->where('approve_head_dept', '0')
@@ -294,13 +371,12 @@ class BPBController extends Controller
                     ]);
             }
 
-
             DB::commit();
 
             if ($updated === 0) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'BPB sudah di-approve sebelumnya'
+                    'message' => 'BPB sudah di-approve sebelumnya atau tidak memenuhi syarat'
                 ], 409);
             }
 

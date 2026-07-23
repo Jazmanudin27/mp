@@ -192,6 +192,8 @@ use App\Http\Controllers\BPBController;
 use App\Http\Controllers\BPBPembelianController;
 use App\Http\Controllers\InternalMemoController;
 use App\Http\Controllers\DokumenopnameController;
+use App\Http\Controllers\WaSettingController;
+use App\Http\Controllers\AduanController;
 use App\Models\Barangkeluargudangbahan;
 use App\Models\Barangproduksi;
 use App\Models\Kontrabonpembelian;
@@ -2639,7 +2641,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/po/editbarang', 'editbarang')->name('po.editbarang')->can('po.edit');
     });
 
-
     Route::controller(BPBController::class)->group(function () {
         Route::get('/bpb', 'index')->name('bpb.index');
         Route::get('/bpb/create', 'create')->name('bpb.create');
@@ -2703,7 +2704,28 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::get('/trackingtruck', [TrackingtruckController::class, 'index'])->name('trackingtruck.index')->can('trackingtruck.index');
+
+    // WhatsApp Notification Settings
+    Route::get('/settings/wa-notification', [WaSettingController::class, 'index'])->name('wa-setting.index');
+    Route::post('/settings/wa-notification', [WaSettingController::class, 'update'])->name('wa-setting.update');
+
+    // Customer Complaints Portal List
+    Route::get('/aduan-pelanggan', [AduanController::class, 'index'])->name('aduan.index');
+    Route::put('/aduan-pelanggan/{id}/update-status', [AduanController::class, 'updateStatus'])->name('aduan.update-status');
+
+    // Buku Panduan & Q&A Chat
+    Route::controller(\App\Http\Controllers\PanduanController::class)->group(function () {
+        Route::get('/panduan', 'index')->name('panduan.index');
+        Route::get('/panduan/{slug}', 'show')->name('panduan.show');
+        Route::post('/panduan/chat', 'chat')->name('panduan.chat');
+    });
 });
+
+
+// Public routes for WhatsApp due notifications & complaints
+Route::get('/aduan/{encrypted_faktur?}', [AduanController::class, 'showForm'])->name('aduan.form');
+Route::post('/aduan', [AduanController::class, 'submitForm'])->name('aduan.submit');
+Route::get('/bayar/{encrypted_faktur}', [AduanController::class, 'showPayment'])->name('aduan.payment');
 
 
 Route::get('/createrolepermission', function () {

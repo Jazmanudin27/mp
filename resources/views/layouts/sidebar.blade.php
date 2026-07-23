@@ -394,8 +394,7 @@
              </li>
          @endif
          @if (auth()->user()->hasRole(['super admin', 'gm administrasi']))
-             <li
-                 class="menu-item {{ request()->is(['roles', 'roles/*', 'permissiongroups', 'permissiongroups/*', 'permissions', 'permissions/*', 'users', 'users/*']) ? 'open' : '' }} ">
+             <li class="menu-item {{ request()->is(['roles', 'roles/*', 'permissiongroups', 'permissiongroups/*', 'permissions', 'permissions/*', 'users', 'users/*', 'settings/wa-notification', 'settings/wa-notification/*']) ? 'open' : '' }} ">
                  <a href="javascript:void(0);" class="menu-link menu-toggle">
                      <i class="menu-icon tf-icons ti ti-adjustments-horizontal"></i>
                      <div>Settings</div>
@@ -404,6 +403,11 @@
                      <li class="menu-item {{ request()->is(['users', 'users/*']) ? 'active' : '' }}">
                          <a href="{{ route('users.index') }}" class="menu-link">
                              <div>User</div>
+                         </a>
+                     </li>
+                     <li class="menu-item {{ request()->is(['settings/wa-notification', 'settings/wa-notification/*']) ? 'active' : '' }}">
+                         <a href="{{ route('wa-setting.index') }}" class="menu-link">
+                             <div>Setting WA Notif</div>
                          </a>
                      </li>
                      @if (auth()->user()->hasRole(['super admin']))
@@ -432,6 +436,22 @@
              <a href="{{ route('ticket.index') }}" class="menu-link">
                  <i class="menu-icon tf-icons ti ti-ticket"></i>
                  <div>Ticket</div>
+             </a>
+         </li>
+
+         @if (auth()->user()->hasRole(['super admin', 'gm administrasi', 'admin penjualan']))
+         <li class="menu-item {{ request()->is(['aduan-pelanggan', 'aduan-pelanggan/*']) ? 'active' : '' }}">
+             <a href="{{ route('aduan.index') }}" class="menu-link">
+                 <i class="menu-icon tf-icons ti ti-messages"></i>
+                 <div>Aduan Pelanggan</div>
+             </a>
+         </li>
+         @endif
+
+         <li class="menu-item {{ request()->is(['panduan', 'panduan/*']) ? 'active' : '' }}">
+             <a href="{{ route('panduan.index') }}" class="menu-link">
+                 <i class="menu-icon tf-icons ti ti-book"></i>
+                 <div>Buku Panduan</div>
              </a>
          </li>
 

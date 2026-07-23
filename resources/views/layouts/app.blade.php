@@ -136,6 +136,10 @@
         </nav>
     @endhasanyrole
     <!-- End: Customizer-->
+    
+    <!-- Floating Q&A Assistant Chat Widget -->
+    @include('panduan.partials.chat')
+
     <!-- Core JS -->
     @include('layouts.scripts')
     <!-- Page JS -->
